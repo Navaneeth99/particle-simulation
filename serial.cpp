@@ -1,5 +1,9 @@
 #include "common.h"
 #include <cmath>
+#include <vector>
+
+static int m;
+static std::vector<std::vector<int>> grid;
 
 // Apply the force from neighbor to particle
 void apply_force(particle_t& particle, particle_t& neighbor) {
@@ -47,19 +51,63 @@ void init_simulation(particle_t* parts, int num_parts, double size) {
 	// You can use this space to initialize static, global data objects
     // that you may need. This function will be called once before the
     // algorithm begins. Do not do any particle simulation here
+    double s = cutoff;
+    m = std::ceil(size/s);
+    grid.resize((m+1)*(m+1));
 }
 
 void simulate_one_step(particle_t* parts, int num_parts, double size) {
     // Compute Forces
-    for (int i = 0; i < num_parts; ++i) {
-        parts[i].ax = parts[i].ay = 0;
-        for (int j = 0; j < num_parts; ++j) {
-            apply_force(parts[i], parts[j]);
-        }
+    // for (int i = 0; i < num_parts; ++i) {
+    //     parts[i].ax = parts[i].ay = 0;
+    //     for (int j = 0; j < num_parts; ++j) {
+    //         apply_force(parts[i], parts[j]);
+    //     }
+    // }
+    double s = cutoff;
+    long x_cell, y_cell;
+    for (int i = 0; i< num_parts; i++)
+    {
+        x_cell = std::floor(parts[i].x / s);
+        y_cell = std::floor(parts[i].y / s);
+        grid[x_cell*(m+1) + y_cell].push_back(i);
     }
 
+    int i, j, pi, pj;
+    for ( i=0; i < (m+1); i++)
+    {
+        for( j=0; j < (m+1); j++)
+        {
+            for (int gi : grid[(i)*(m+1) + (j)])
+            {
+                pi = 1;
+                parts[gi].ax = parts[gi].ay = 0;
+                while(pi >= -1)
+                {   
+                    pj = 1;
+                    while(pj >= -1)
+                    {
+                        if (((j+pj) >= 0) &&((j+pj) < (m+1)) && ((i+pi) >= 0) && ((i+pi) < (m+1)))
+                        {
+                            for (int gj : grid[(i+pi)*(m+1) + (j+pj)])
+                            {
+                                if(gi == gj) continue;
+                                apply_force(parts[gi], parts[gj]);
+                            }
+                        }
+                    --pj;
+                    }
+                --pi;
+                }
+            }
+        }
+    }
+    for (auto& cell : grid) {
+    cell.clear();
+    }
     // Move Particles
-    for (int i = 0; i < num_parts; ++i) {
+    for (int i = 0; i < num_parts; ++i) 
+    {
         move(parts[i], size);
     }
 }
