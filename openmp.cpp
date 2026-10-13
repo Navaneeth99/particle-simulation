@@ -7,6 +7,7 @@
 // Put any static global variables here that you will use throughout the simulation.
 static int m;
 static std::vector<std::vector<int>> grid;
+static std::vector<omp_lock_t> locks;
 
 void apply_force(particle_t& particle, particle_t& neighbor) {
     // Calculate Distance
@@ -54,22 +55,31 @@ void init_simulation(particle_t* parts, int num_parts, double size) {
 	double s = cutoff;
     m = std::ceil(size/s);
     grid.resize((m+1)*(m+1));
+	locks.resize((m+1)*(m+1));
+	for (int i = 0; i < (m+1)*(m+1); ++i)
+        omp_init_lock(&locks[i]);
 }
 
 void simulate_one_step(particle_t* parts, int num_parts, double size) {
     // Write this function
 	double s = cutoff;
-    long x_cell, y_cell;
-    #pragma omp parallel private(x_cell, y_cell)
+    long x_cell, y_cell, c;
+	
+    #pragma omp parallel private(x_cell, y_cell, c)
 	{
 		#pragma omp for
 		for (int i = 0; i< num_parts; i++)
 		{
 			x_cell = std::floor(parts[i].x / s);
 			y_cell = std::floor(parts[i].y / s);
-			grid[x_cell*(m+1) + y_cell].push_back(i);
+			c = x_cell*(m+1) + y_cell;
+
+			omp_set_lock(&locks[c]);
+			grid[c].push_back(i);
+			omp_unset_lock(&locks[c]);
 		}
 	}
+
 	#pragma omp parallel
 	{
 		int i, j, pi, pj;
