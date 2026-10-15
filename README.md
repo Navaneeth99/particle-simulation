@@ -1,6 +1,6 @@
 # Parallel Particle Simulation (OpenMP)
 
-A 2D particle simulation where particles repel each other within a cutoff distance, sped up from O(n²) to O(n) and parallelized with OpenMP. Built for CSE 6230 (High Performance Parallel Computing) at Georgia Tech.
+A 2D particle simulation where particles repel each other within a cutoff distance, sped up from O(n²) to O(n) and parallelized with OpenMP
 
 ![Particle simulation](particles.gif)
 
