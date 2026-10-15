@@ -36,7 +36,7 @@ void init_particles(particle_t* parts, int num_parts, double size, int part_seed
     int sy = (num_parts + sx - 1) / sx;
 
     std::vector<int> shuffle(num_parts);
-    for (int i = 0; i < shuffle.size(); ++i) {
+    for (int i = 0; i < num_parts; ++i) {
         shuffle[i] = i;
     }
 
@@ -105,7 +105,10 @@ int main(int argc, char** argv) {
 
     // Open Output File
     char* savename = find_string_option(argc, argv, "-o", nullptr);
-    std::ofstream fsave(savename);
+    std::ofstream fsave;
+    if (savename != nullptr) {
+        fsave.open(savename);
+    }
 
     // Initialize Particles
     int num_parts = find_int_arg(argc, argv, "-n", 1000);
@@ -121,17 +124,15 @@ int main(int argc, char** argv) {
 
     init_simulation(parts, num_parts, size);
 
-    {
-        for (int step = 0; step < nsteps; ++step) {
-            simulate_one_step(parts, num_parts, size);
+    for (int step = 0; step < nsteps; ++step) {
+        simulate_one_step(parts, num_parts, size);
 
-            // Save state if necessary
+        // Save state if necessary
 #ifdef _OPENMP
 #pragma omp master
 #endif
-            if (fsave.good() && (step % savefreq) == 0) {
-                save(fsave, parts, num_parts, size);
-            }
+        if (fsave.good() && (step % savefreq) == 0) {
+            save(fsave, parts, num_parts, size);
         }
     }
 
@@ -141,7 +142,9 @@ int main(int argc, char** argv) {
     double seconds = diff.count();
 
     // Finalize
-    std::cout << "Simulation Time = " << seconds << " seconds for " << num_parts << " particles.\n";
+    std::cout << "Simulation Time = " << seconds << " seconds for " << num_parts
+              << " particles.\n";
     fsave.close();
     delete[] parts;
+    return 0;
 }

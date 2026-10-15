@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
 find_package(OpenMP REQUIRED)
 
-# Group number
+# Group name
 set(GROUP_NAME "None" CACHE STRING "Your group name as it appears on bCourses (no spaces)")
 
 # Packaging system
@@ -18,8 +18,9 @@ if (NOT ${GROUP_NAME} STREQUAL None)
     include(CPack)
 endif ()
 
-# We require the GNU compiler for this assignment.
+# We require the GNU compiler for submission.
 if (NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
+    set(Prg-Intel "PrgEnv-intel")
     set(Prg-Clang "PrgEnv-cray")
     message(WARNING
             "Must use GNU Compiler for submission. Make sure you ran:\n"
@@ -31,6 +32,6 @@ add_executable(serial main.cpp serial.cpp common.h)
 add_executable(openmp main.cpp openmp.cpp common.h)
 target_link_libraries(openmp PRIVATE OpenMP::OpenMP_CXX)
 
-# Copy the job scripts
+# Copy the job scripts into the build directory
 configure_file(job-serial job-serial COPYONLY)
 configure_file(job-openmp job-openmp COPYONLY)
