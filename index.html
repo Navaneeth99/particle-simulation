@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parallel Particle Simulation</title>
+<meta name="description" content="A 2D particle simulation made linear-time with a spatial grid and parallelized with OpenMP.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fbfaf7;
+    --surface: #ffffff;
+    --text: #1d1f24;
+    --muted: #5d6370;
+    --border: #e3e1da;
+    --accent: #2f6fd6;
+    --accent-soft: #e5eefc;
+    --warm: #d9772b;
+    --warm-soft: #fbeadb;
+    --code-bg: #f3f2ee;
+    --cell: #f6f5f1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14161a;
+      --surface: #1b1e23;
+      --text: #e7e8ea;
+      --muted: #9aa1ad;
+      --border: #2c3038;
+      --accent: #6ea2f5;
+      --accent-soft: #1e2b42;
+      --warm: #f0a061;
+      --warm-soft: #3a2a1d;
+      --code-bg: #1f2228;
+      --cell: #1f2228;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161a;
+    --surface: #1b1e23;
+    --text: #e7e8ea;
+    --muted: #9aa1ad;
+    --border: #2c3038;
+    --accent: #6ea2f5;
+    --accent-soft: #1e2b42;
+    --warm: #f0a061;
+    --warm-soft: #3a2a1d;
+    --code-bg: #1f2228;
+    --cell: #1f2228;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 17px/1.65 "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 56px 16px 80px; }
+  h1 { font-size: 2.3rem; line-height: 1.15; margin: 0 0 12px; letter-spacing: -0.02em; }
+  h2 { font-size: 1.45rem; margin: 56px 0 12px; letter-spacing: -0.01em; }
+  h3 { font-size: 1.1rem; margin: 32px 0 8px; }
+  p, li { color: var(--text); }
+  .lede { font-size: 1.15rem; color: var(--muted); margin: 0 0 28px; }
+  .eyebrow { font: 600 0.8rem/1 "JetBrains Mono", monospace; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); margin-bottom: 14px; }
+  a { color: var(--accent); }
+  code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 0.88em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    font-size: 0.86rem;
+    line-height: 1.55;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .k { color: var(--accent); font-weight: 600; }
+  .p { color: var(--warm); font-weight: 600; }
+  .c { color: var(--muted); font-style: italic; }
+
+  figure { margin: 28px 0; }
+  figure img { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border); display: block; }
+  figcaption { font-size: 0.88rem; color: var(--muted); margin-top: 8px; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 28px 0; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .stat b { display: block; font-size: 1.35rem; font-family: "JetBrains Mono", monospace; }
+  .stat span { font-size: 0.85rem; color: var(--muted); }
+
+  .steps { counter-reset: s; list-style: none; padding: 0; }
+  .steps li { counter-increment: s; position: relative; padding-left: 40px; margin: 14px 0; }
+  .steps li::before {
+    content: counter(s);
+    position: absolute; left: 0; top: 1px;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent);
+    font: 600 0.85rem/26px "JetBrains Mono", monospace; text-align: center;
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.92rem; margin: 16px 0; }
+  th, td { text-align: left; padding: 10px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .table-wrap { overflow-x: auto; }
+
+  .note { background: var(--warm-soft); border-left: 3px solid var(--warm); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 20px 0; font-size: 0.95rem; }
+
+  .diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .diagram svg { width: 100%; height: auto; display: block; }
+  .diagram .cell { fill: var(--cell); stroke: var(--border); }
+  .diagram .nbr { fill: var(--accent-soft); stroke: var(--accent); }
+  .diagram .home { fill: var(--accent); }
+  .diagram .dot { fill: var(--muted); }
+  .diagram .me { fill: var(--warm); }
+  .diagram .ring { fill: none; stroke: var(--warm); stroke-dasharray: 4 4; }
+  .diagram text { fill: var(--muted); font: 12px "JetBrains Mono", monospace; }
+  .diagram .t-strong { fill: var(--text); font-weight: 600; }
+  .diagram .band { stroke: var(--surface); stroke-width: 2; }
+
+  footer { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 0.88rem; color: var(--muted); }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 1.8rem; }
+    .stats { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">CSE 6230 · Georgia Tech</div>
+  <h1>Parallel Particle Simulation</h1>
+  <p class="lede">A 2D simulation of particles that push each other away at short range. A spatial grid cuts each timestep from O(n²) to O(n), and OpenMP spreads that work across cores.</p>
+
+  <figure>
+    <img src="particles.gif" alt="Animation of particles spreading out and bouncing inside a square box" loading="lazy">
+    <figcaption>Particles repelling each other and bouncing off the walls of the box.</figcaption>
+  </figure>
+
+  <div class="stats">
+    <div class="stat"><b>O(n²) → O(n)</b><span>work per timestep</span></div>
+    <div class="stat"><b>3 × 3</b><span>cells checked per particle</span></div>
+    <div class="stat"><b>1 lock</b><span>per grid cell (OpenMP)</span></div>
+  </div>
+
+  <h2>The problem</h2>
+  <p>Each particle has a position, velocity and acceleration. Two particles only interact when they are closer than a fixed <code>cutoff</code> distance (0.01). Inside that distance they feel a short repulsive force; outside it, nothing. Every timestep we compute the force on every particle, then move them all and bounce any that cross a wall.</p>
+  <p>The starter code computes forces the obvious way: for each particle, loop over every other particle.</p>
+<pre><code><span class="k">for</span> (<span class="k">int</span> i = 0; i &lt; num_parts; ++i) {
+    parts[i].ax = parts[i].ay = 0;
+    <span class="k">for</span> (<span class="k">int</span> j = 0; j &lt; num_parts; ++j)
+        apply_force(parts[i], parts[j]);   <span class="c">// n × n calls</span>
+}</code></pre>
+  <p>That is n² distance checks per step, and almost all of them come back "too far, no force". The particle density is fixed, so each particle only ever has a handful of real neighbors. The goal is to skip the pointless checks.</p>
+
+  <h2>Serial version: a spatial grid</h2>
+  <p>The box is split into square cells exactly one <code>cutoff</code> wide. If two particles are within <code>cutoff</code> of each other, they must sit in the same cell or in directly adjacent cells. So each particle only has to look at the 3 × 3 block of cells around its own.</p>
+
+  <div class="diagram" role="img" aria-label="Grid of cells. One cell is highlighted with its eight neighbors; the cutoff circle around a particle fits inside that 3 by 3 block.">
+    <svg viewBox="0 0 420 300" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(30,20)">
+        <!-- 6x5 grid, 50px cells -->
+        <g>
+          <rect class="cell" x="0" y="0" width="50" height="50"/><rect class="cell" x="50" y="0" width="50" height="50"/><rect class="cell" x="100" y="0" width="50" height="50"/><rect class="cell" x="150" y="0" width="50" height="50"/><rect class="cell" x="200" y="0" width="50" height="50"/>
+          <rect class="cell" x="0" y="50" width="50" height="50"/><rect class="nbr" x="50" y="50" width="50" height="50"/><rect class="nbr" x="100" y="50" width="50" height="50"/><rect class="nbr" x="150" y="50" width="50" height="50"/><rect class="cell" x="200" y="50" width="50" height="50"/>
+          <rect class="cell" x="0" y="100" width="50" height="50"/><rect class="nbr" x="50" y="100" width="50" height="50"/><rect class="nbr" x="100" y="100" width="50" height="50" style="fill-opacity:1"/><rect class="nbr" x="150" y="100" width="50" height="50"/><rect class="cell" x="200" y="100" width="50" height="50"/>
+          <rect class="cell" x="0" y="150" width="50" height="50"/><rect class="nbr" x="50" y="150" width="50" height="50"/><rect class="nbr" x="100" y="150" width="50" height="50"/><rect class="nbr" x="150" y="150" width="50" height="50"/><rect class="cell" x="200" y="150" width="50" height="50"/>
+          <rect class="cell" x="0" y="200" width="50" height="50"/><rect class="cell" x="50" y="200" width="50" height="50"/><rect class="cell" x="100" y="200" width="50" height="50"/><rect class="cell" x="150" y="200" width="50" height="50"/><rect class="cell" x="200" y="200" width="50" height="50"/>
+        </g>
+        <rect x="100" y="100" width="50" height="50" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
+        <circle class="ring" cx="138" cy="112" r="50"/>
+        <!-- other particles -->
+        <circle class="dot" cx="20" cy="30" r="3.5"/><circle class="dot" cx="230" cy="20" r="3.5"/>
+        <circle class="dot" cx="175" cy="80" r="3.5"/><circle class="dot" cx="70" cy="130" r="3.5"/>
+        <circle class="dot" cx="160" cy="125" r="3.5"/><circle class="dot" cx="120" cy="185" r="3.5"/>
+        <circle class="dot" cx="25" cy="170" r="3.5"/><circle class="dot" cx="215" cy="230" r="3.5"/>
+        <circle class="dot" cx="80" cy="225" r="3.5"/><circle class="dot" cx="225" cy="120" r="3.5"/>
+        <circle class="me" cx="138" cy="112" r="5"/>
+      </g>
+      <g transform="translate(300,40)">
+        <rect class="nbr" x="0" y="0" width="16" height="16"/><text x="24" y="13">checked</text>
+        <rect class="cell" x="0" y="28" width="16" height="16"/><text x="24" y="41">skipped</text>
+        <circle class="me" cx="8" cy="64" r="5"/><text x="24" y="68">particle</text>
+        <line class="ring" x1="0" y1="90" x2="16" y2="90"/><text x="24" y="94">cutoff</text>
+        <text x="0" y="132" class="t-strong">cell side</text>
+        <text x="0" y="148">= cutoff</text>
+        <text x="0" y="180" class="t-strong">9 cells</text>
+        <text x="0" y="196">instead of</text>
+        <text x="0" y="212">the whole box</text>
+      </g>
+    </svg>
+  </div>
+
+  <p>Each timestep in <a href="serial.cpp"><code>serial.cpp</code></a> does four things:</p>
+  <ol class="steps">
+    <li><b>Bin.</b> Put each particle's index into the cell it falls in: <code>cell = floor(x / cutoff) * (m+1) + floor(y / cutoff)</code>.</li>
+    <li><b>Compute forces.</b> Walk every cell; for each particle in it, zero its acceleration and apply forces from every particle in the 3 × 3 neighborhood (skipping itself and cells outside the box).</li>
+    <li><b>Clear the grid.</b> Empty every cell so the next step can rebin from scratch.</li>
+    <li><b>Move.</b> Integrate velocity and position, and reflect particles off the walls.</li>
+  </ol>
+
+<pre><code><span class="c">// 1. bin</span>
+<span class="k">for</span> (<span class="k">int</span> i = 0; i &lt; num_parts; i++) {
+    x_cell = std::floor(parts[i].x / s);
+    y_cell = std::floor(parts[i].y / s);
+    grid[x_cell*(m+1) + y_cell].push_back(i);
+}
+
+<span class="c">// 2. forces: each particle vs. its 3x3 neighborhood</span>
+<span class="k">for</span> (i = 0; i &lt; m+1; i++)
+  <span class="k">for</span> (j = 0; j &lt; m+1; j++)
+    <span class="k">for</span> (<span class="k">int</span> gi : grid[i*(m+1) + j]) {
+        parts[gi].ax = parts[gi].ay = 0;
+        <span class="k">for</span> (pi = 1; pi &gt;= -1; --pi)
+          <span class="k">for</span> (pj = 1; pj &gt;= -1; --pj)
+            <span class="k">if</span> (<span class="c">/* neighbor cell is inside the grid */</span>)
+              <span class="k">for</span> (<span class="k">int</span> gj : grid[(i+pi)*(m+1) + (j+pj)])
+                  <span class="k">if</span> (gi != gj) apply_force(parts[gi], parts[gj]);
+    }</code></pre>
+
+  <h3>Why it is linear</h3>
+  <p>Binning, clearing and moving each touch every particle once: O(n). For forces, the simulation keeps density constant, so the box grows with n and each cell holds about the same small number of particles no matter how big the run is. Every particle therefore checks a roughly constant number of neighbors, and the whole force step is O(n) as well.</p>
+  <p>The grid is <code>(m+1) × (m+1)</code> with <code>m = ceil(size / cutoff)</code>. The extra row and column catch a particle sitting exactly on the far wall, where <code>floor(size / cutoff)</code> would otherwise index one past the end.</p>
+
+  <h2>Parallel version: OpenMP</h2>
+  <p><a href="openmp.cpp"><code>openmp.cpp</code></a> keeps the same four phases and the same grid, and turns each phase into a parallel loop. The question for each phase is: can two threads ever write to the same memory at the same time?</p>
+
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Phase</th><th>Parallelized over</th><th>Conflict?</th><th>How it is handled</th></tr></thead>
+    <tbody>
+      <tr><td>Bin</td><td>particles</td><td>Yes: two threads may push into the same cell's vector</td><td>One <code>omp_lock_t</code> per cell around the <code>push_back</code></td></tr>
+      <tr><td>Forces</td><td>grid rows <code>i</code></td><td>No: a thread only writes <code>ax</code>/<code>ay</code> of particles in its own rows; neighbors are only read</td><td>Plain <code>omp for</code></td></tr>
+      <tr><td>Move</td><td>particles</td><td>No: each particle is updated independently</td><td>Plain <code>omp for</code>, after the barrier ending the force loop</td></tr>
+      <tr><td>Clear</td><td>cells</td><td>No: each cell is cleared by one thread</td><td>Plain <code>omp for</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Binning with per-cell locks</h3>
+  <p><code>std::vector::push_back</code> is not thread-safe, and two particles handled by different threads can land in the same cell. One lock per cell (created once in <code>init_simulation</code>) serializes only those colliding inserts. Threads inserting into different cells never wait on each other, which is far cheaper than a single global critical section.</p>
+<pre><code><span class="p">#pragma omp parallel for</span>
+<span class="k">for</span> (<span class="k">int</span> i = 0; i &lt; num_parts; i++) {
+    c = x_cell*(m+1) + y_cell;
+    omp_set_lock(&amp;locks[c]);
+    grid[c].push_back(i);
+    omp_unset_lock(&amp;locks[c]);
+}</code></pre>
+
+  <h3>Forces and movement in one parallel region</h3>
+  <p>The outer loop over grid rows is split among threads. During the force phase positions are read-only, and each particle's acceleration is written only by the thread that owns that particle's cell, so no locks are needed. The <code>omp for</code> ends with an implicit barrier, so every force is finished before any particle moves. Movement then runs in the same parallel region, which saves the cost of starting a new team of threads.</p>
+<pre><code><span class="p">#pragma omp parallel</span>
+{
+    <span class="p">#pragma omp for</span>
+    <span class="k">for</span> (i = 0; i &lt; m+1; i++)  <span class="c">// rows split across threads</span>
+        <span class="c">/* same 3x3 force loop as serial */</span>
+    <span class="c">// implicit barrier: all forces done</span>
+
+    <span class="p">#pragma omp for</span>
+    <span class="k">for</span> (<span class="k">int</span> i = 0; i &lt; num_parts; ++i)
+        move(parts[i], size);
+}
+
+<span class="p">#pragma omp parallel for</span>
+<span class="k">for</span> (<span class="k">auto</span>&amp; cell : grid) cell.clear();</code></pre>
+
+  <div class="note"><b>Why not use Newton's third law?</b> Applying each pair's force to both particles at once would halve the <code>apply_force</code> calls, but then a thread would write to particles in neighboring rows owned by other threads, which needs atomics or locks. Computing each particle's force independently does a bit more arithmetic and avoids all write contention.</div>
+
+  <figure>
+    <img src="particles_100k.gif" alt="Animation of 100,000 particles in the simulation box" loading="lazy">
+    <figcaption>The same simulation with 100,000 particles.</figcaption>
+  </figure>
+
+  <h2>Build and run</h2>
+<pre><code>mkdir build &amp;&amp; cd build
+cmake -DCMAKE_BUILD_TYPE=Release ..
+make
+
+./serial -n 10000 -s 1                      <span class="c"># serial O(n)</span>
+OMP_NUM_THREADS=8 ./openmp -n 100000 -s 1   <span class="c"># OpenMP</span></code></pre>
+  <p>Flags: <code>-n</code> number of particles, <code>-s</code> random seed, <code>-o</code> file to write particle positions to. <code>correctness/correctness-check.py</code> compares an output file against a reference, and <code>render/render.py</code> turns one into an animation.</p>
+
+  <footer>
+    Source on <a href="https://github.com/Navaneeth99/particle-simulation">GitHub</a>. Starter code and assignment adapted from UC Berkeley CS267 and MIT 6.172.
+  </footer>
+</main>
+</body>
+</html>
